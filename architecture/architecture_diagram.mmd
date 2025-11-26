@@ -1,0 +1,152 @@
+flowchart LR
+
+%% SOURCES
+subgraph Sources[Sources]
+    TT[TikTok API]
+    X[X API]
+    IG[Instagram API]
+    YT[YouTube API]
+    WebCrawl[Web Crawlers]
+    Partners[Partner Feeds]
+end
+
+%% INGESTION
+subgraph Ingestion[Ingestion Layer]
+    Scheduler[(Scheduler)]
+    RateLimiter[(Distributed Rate Limiter)]
+    ConnectorECS[ECS Connectors]
+    LambdaConnect[Lambda Connectors]
+    SQSIn[(SQS / Kinesis)]
+end
+
+%% RAW STORAGE
+subgraph RawStorage[Raw Storage]
+    RawS3[(S3 Raw Lake)]
+    Manifests[(Manifests + Backfill Catalog)]
+end
+
+%% PROCESSING
+subgraph Processing[Normalization & Processing]
+    Parser[Parsers & Normalizers]
+    Extractor[Metadata Extractors]
+    WorkerRealtime[Realtime Workers]
+    WorkerBatch[Batch Workers]
+    Transforms[(Delta Lake / Iceberg)]
+end
+
+%% AI LAYER
+subgraph AI[AI / ML Layer]
+    VisionOCR[OCR / Vision Models]
+    EmbeddingSvc[Embedding Service]
+    EmbeddingStore[(Vector DB)]
+    LLMScoring[LLM Scoring Service]
+end
+
+%% IDENTITY
+subgraph Identity[Identity Resolution]
+    ProfileSQL[(Aurora Postgres - Profiles)]
+    IdentityGraph[(Graph DB)]
+    DedupQueue[(Dedup Queue)]
+end
+
+%% FEATURE STORE
+subgraph Feature[Feature Store + Indexes]
+    FeatureStore[(Redis / Dynamo Feature Store)]
+    MetadataIndex[(OpenSearch Index)]
+end
+
+
+%% RETRIEVAL & RANKING
+subgraph VectorRank[Retrieval & Ranking]
+    Retriever[Hybrid Retriever]
+    Ranker[ML Ranker]
+    OnlineFeatureSrv[(Online Feature Service)]
+    Cache[(Cache / CDN)]
+end
+
+%% API LAYER
+subgraph API[API Layer]
+    APIGW[(API Gateway)]
+    Auth[(Authentication / Keys)]
+    SearchSvc[Search Service]
+    BatchExport[Batch Export]
+    WebhookSrv[Webhook Service]
+end
+
+%% INFRA
+subgraph Infra[Infra / Observability]
+    IaC[Terraform / CDK]
+    CI[CI/CD Pipeline]
+    InfraMon[Monitoring / CloudWatch]
+    Sentry[Sentry / Honeycomb]
+    Cost[Cost Explorer]
+end
+
+%% FLOWS
+
+TT -->|poll/webhook| Scheduler
+X -->|poll/webhook| Scheduler
+IG --> Scheduler
+YT --> Scheduler
+WebCrawl --> Scheduler
+Partners --> Scheduler
+
+Scheduler --> RateLimiter --> ConnectorECS
+Scheduler --> RateLimiter --> LambdaConnect
+ConnectorECS --> SQSIn
+LambdaConnect --> SQSIn
+
+SQSIn --> RawS3
+SQSIn --> Parser
+
+RawS3 --> Manifests
+
+Parser --> Extractor --> WorkerRealtime
+Parser --> WorkerBatch
+
+WorkerBatch --> Transforms
+WorkerRealtime --> Transforms
+
+Transforms --> ProfileSQL
+Transforms --> IdentityGraph
+
+Extractor --> VisionOCR --> EmbeddingSvc
+Extractor --> EmbeddingSvc
+
+EmbeddingSvc --> EmbeddingStore
+LLMScoring --> ProfileSQL
+LLMScoring --> EmbeddingStore
+
+ProfileSQL --> FeatureStore
+IdentityGraph --> DedupQueue --> ProfileSQL
+
+FeatureStore --> Retriever
+MetadataIndex --> Retriever
+EmbeddingStore --> Retriever
+
+Retriever --> Ranker
+OnlineFeatureSrv --> Ranker
+Cache --> Ranker
+
+Ranker --> SearchSvc
+SearchSvc --> APIGW
+APIGW --> Auth
+SearchSvc --> BatchExport
+SearchSvc --> WebhookSrv
+
+IaC --> CI --> ConnectorECS
+InfraMon --> APIGW
+Sentry --> ConnectorECS
+Cost --> IaC
+
+%% STYLES
+style Sources fill:#f9f,stroke:#333,stroke-width:1px
+style Ingestion fill:#bbf,stroke:#333
+style RawStorage fill:#eee,stroke:#333
+style Processing fill:#ffe4b5,stroke:#333
+style AI fill:#e6e6fa,stroke:#333
+style Identity fill:#dff0d8,stroke:#333
+style Feature fill:#fff0f5,stroke:#333
+style VectorRank fill:#f0fff0,stroke:#333
+style API fill:#f7f7f7,stroke:#333
+style Infra fill:#f5f5f5,stroke:#333
