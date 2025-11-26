@@ -1,0 +1,13 @@
+{
+  "TableName": "creator_features",
+  "AttributeDefinitions": [
+    { "AttributeName": "creator_id", "AttributeType": "S" }
+  ],
+  "KeySchema": [
+    { "AttributeName": "creator_id", "KeyType": "HASH" }
+  ],
+  "BillingMode": "PAY_PER_REQUEST",
+  "TimeToLiveSpecification": {
+    "Enabled": false
+  }
+}
