@@ -1,0 +1,278 @@
+openapi: 3.1.0
+info:
+  title: InCreator Influencer Discovery API
+  version: 1.0.0
+  description: >
+    API for semantic creator search, profile lookup, bulk exports,
+    and webhook integrations. Designed for multi-platform creator discovery
+    across Instagram, TikTok, YouTube, and X.
+
+servers:
+  - url: https://api.increator.ai/v1
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+
+    Creator:
+      type: object
+      properties:
+        creator_id:
+          type: string
+          example: cr_8f92bd
+        name:
+          type: string
+          example: "Lena Park"
+        canonical_handle:
+          type: string
+          example: "lenapark"
+        platforms:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlatformProfile"
+        categories:
+          type: array
+          example: ["fashion", "lifestyle"]
+        bio:
+          type: string
+        country:
+          type: string
+        follower_count:
+          type: integer
+        engagement_rate:
+          type: number
+        embedding_vector:
+          type: array
+          items:
+            type: number
+
+    PlatformProfile:
+      type: object
+      properties:
+        platform:
+          type: string
+          enum: [instagram, youtube, tiktok, x]
+        handle:
+          type: string
+        platform_user_id:
+          type: string
+        url:
+          type: string
+        followers:
+          type: integer
+        posts:
+          type: integer
+
+    SearchResult:
+      type: object
+      properties:
+        creator:
+          $ref: "#/components/schemas/Creator"
+        score:
+          type: number
+
+    SearchRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Semantic search query"
+          example: "vegan fitness influencer in Germany"
+        filters:
+          type: object
+          properties:
+            platform:
+              type: string
+              enum: [instagram, youtube, tiktok, x]
+            min_followers:
+              type: integer
+            max_followers:
+              type: integer
+            categories:
+              type: array
+              items:
+                type: string
+        limit:
+          type: integer
+          default: 20
+
+    ExportRequest:
+      type: object
+      properties:
+        creator_ids:
+          type: array
+          items:
+            type: string
+        format:
+          type: string
+          enum: [json, csv, parquet]
+
+    WebhookRegistration:
+      type: object
+      properties:
+        webhook_url:
+          type: string
+        events:
+          type: array
+          items:
+            type: string
+            enum: [creator.updated, export.ready]
+        secret:
+          type: string
+
+paths:
+
+  /search:
+    post:
+      summary: Semantic search for creators
+      description: Search creators using vectors + metadata filters + ML ranking.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SearchResult"
+                  total:
+                    type: integer
+
+  /creators/{creator_id}:
+    get:
+      summary: Get full canonical creator profile
+      parameters:
+        - in: path
+          name: creator_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Creator profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Creator"
+        '404':
+          description: Creator not found
+
+  /creators/batch:
+    post:
+      summary: Fetch multiple creators in one request
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                creator_ids:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Batch creator profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Creator"
+
+  /exports:
+    post:
+      summary: Create a bulk export job
+      description: Returns a job_id that can be polled.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportRequest"
+      responses:
+        '202':
+          description: Export job created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                  status:
+                    type: string
+                    example: pending
+
+  /exports/{job_id}:
+    get:
+      summary: Poll export job status
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Export status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                  status:
+                    type: string
+                    enum: [pending, processing, ready, failed]
+                  download_url:
+                    type: string
+                    nullable: true
+
+  /webhooks/register:
+    post:
+      summary: Register a webhook
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookRegistration"
+      responses:
+        '201':
+          description: Webhook registered
+
+  /webhooks/test:
+    post:
+      summary: Send a test event to validate webhook
+      responses:
+        '200':
+          description: Webhook test event sent
+
+  /health:
+    get:
+      summary: API liveness check
+      responses:
+        '200':
+          description: Healthy
